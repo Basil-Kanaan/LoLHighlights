@@ -1,5 +1,4 @@
 import argparse
-import math
 import os
 import threading
 import time
@@ -21,15 +20,21 @@ DEFAULT_EXTRACT_INTERVAL = 2
 # Threshold value for template matching
 MATCH_THRESH = 0.85
 
+# Whether to display frames with matched templates (set from --show-matches)
+SHOW_MATCH = False
+
+# Only one match window may be open at a time, since frames are classified on worker threads
+display_lock = threading.Lock()
+
 # Get the absolute path of the current directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
 # Template images in grayscale
 template_images = {
-    "double": cv2.imread(os.path.join(current_dir, 'data\\images of phrases', 'double.png'), cv2.IMREAD_GRAYSCALE),
-    "triple": cv2.imread(os.path.join(current_dir, 'data\\images of phrases', 'triple.png'), cv2.IMREAD_GRAYSCALE),
-    "quadra": cv2.imread(os.path.join(current_dir, 'data\\images of phrases', 'quadra.png'), cv2.IMREAD_GRAYSCALE),
-    "penta": cv2.imread(os.path.join(current_dir, 'data\\images of phrases', 'penta.png'), cv2.IMREAD_GRAYSCALE),
+    "double": cv2.imread(os.path.join(current_dir, 'data', 'images of phrases', 'double.png'), cv2.IMREAD_GRAYSCALE),
+    "triple": cv2.imread(os.path.join(current_dir, 'data', 'images of phrases', 'triple.png'), cv2.IMREAD_GRAYSCALE),
+    "quadra": cv2.imread(os.path.join(current_dir, 'data', 'images of phrases', 'quadra.png'), cv2.IMREAD_GRAYSCALE),
+    "penta": cv2.imread(os.path.join(current_dir, 'data', 'images of phrases', 'penta.png'), cv2.IMREAD_GRAYSCALE),
 }
 
 
@@ -46,8 +51,8 @@ def extract_frames_parallel(video_file_path, seconds_between_frames=DEFAULT_EXTR
     #     video_capture.set(cv2.CAP_PROP_FRAME_HEIGHT, FRAME_HEIGHT)
 
     total_frame_count = int(video_capture.get(cv2.CAP_PROP_FRAME_COUNT))
-    frames_per_second = math.ceil(video_capture.get(cv2.CAP_PROP_FPS))
-    frames_per_interval = int(frames_per_second * seconds_between_frames)
+    frames_per_second = video_capture.get(cv2.CAP_PROP_FPS)
+    frames_per_interval = max(1, round(frames_per_second * seconds_between_frames))
     frame_indices = range(0, total_frame_count, frames_per_interval)
 
     def process_and_classify_frame(video_capture, frame_index, lock):
@@ -58,7 +63,7 @@ def extract_frames_parallel(video_file_path, seconds_between_frames=DEFAULT_EXTR
         if frame_retrieved:
             frame_in_grayscale = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
             frame_classification = classify_frame(
-                frame_in_grayscale, frame_index // frames_per_interval * seconds_between_frames
+                frame_in_grayscale, frame_index / frames_per_second
             )
             if frame_classification:
                 classified_results.append(frame_classification)
@@ -119,7 +124,8 @@ def classify_frame(frame, timestamp):
         # Output True if there is a match, False otherwise
         if len(loc[0]) > 0:
             if SHOW_MATCH:
-                show_frame_with_border(frame.copy(), result.split()[0])
+                with display_lock:
+                    show_frame_with_border(frame.copy(), key)
             formatted_timestamp = format_timestamp(timestamp)
             return f"{key} @ {formatted_timestamp}"
     return None

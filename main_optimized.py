@@ -21,6 +21,12 @@ DEFAULT_EXTRACT_INTERVAL = 2
 # Threshold value for template matching
 MATCH_THRESH = 0.85
 
+# Whether to display frames with matched templates (set from --show-matches)
+SHOW_MATCH = False
+
+# Only one match window may be open at a time, since frames are classified on worker threads
+display_lock = threading.Lock()
+
 # Get the absolute path of the current directory
 current_dir = os.path.dirname(os.path.abspath(__file__))
 
@@ -58,7 +64,7 @@ def extract_frames(video_file_path, seconds_between_frames):
     """
     vr = VideoReader(video_file_path, ctx=cpu(0))
     fps = vr.get_avg_fps()
-    frames_to_extract = int(fps * seconds_between_frames)
+    frames_to_extract = max(1, round(fps * seconds_between_frames))
 
     total_frames = len(vr)
     frame_indices = list(range(0, total_frames, frames_to_extract))
@@ -66,9 +72,10 @@ def extract_frames(video_file_path, seconds_between_frames):
     # Use ThreadPoolExecutor to process frames in parallel
     with ThreadPoolExecutor() as executor:
         future_to_idx = {
-            executor.submit(classify_frame, cv2.cvtColor(vr[idx].asnumpy(), cv2.COLOR_BGR2GRAY), idx / fps): idx for idx
+            executor.submit(classify_frame, cv2.cvtColor(vr[idx].asnumpy(), cv2.COLOR_RGB2GRAY), idx / fps): idx for idx
             in frame_indices}
-        extracted_frames = [future.result() for future in as_completed(future_to_idx) if future.result()]
+        results = (future.result() for future in as_completed(future_to_idx))
+        extracted_frames = [result for result in results if result]
 
     return extracted_frames
 
@@ -112,8 +119,8 @@ def classify_frame(frame, timestamp):
         # Output True if there is a match, False otherwise
         if len(loc[0]) > 0:
             if SHOW_MATCH:
-                print(result)
-                show_frame_with_border(frame.copy(), result.split()[0])
+                with display_lock:
+                    show_frame_with_border(frame.copy(), key)
             formatted_timestamp = format_timestamp(timestamp)
             return f"{key} @ {formatted_timestamp}"
     return None
@@ -165,7 +172,7 @@ if __name__ == '__main__':
     print("\n".join(sorted_results))
 
     # End the timer if the --time-elapsed flag is set and display the elapsed time
-    if args.time_elapsed or True:
+    if args.time_elapsed:
         end_time = time.time()
         elapsed_time = end_time - start_time
         print(f"Elapsed Time: {elapsed_time:.2f} seconds")
