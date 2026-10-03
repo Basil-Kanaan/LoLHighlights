@@ -1,0 +1,4 @@
+opencv-python
+numpy
+# Only needed for main_optimized.py. Wheels exist for Windows x86-64 and Linux x86-64.
+decord
