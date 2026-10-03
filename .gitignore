@@ -1,1 +1,5 @@
 /sample videos/
+/.idea/
+__pycache__/
+/build/
+/dist/
