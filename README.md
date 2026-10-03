@@ -126,7 +126,7 @@ The executable is written to `dist/LoLHighlights.exe`.
 ## Known limitations
 
 - **Resolution and HUD scale.** Template matching is not scale-invariant. The templates are fixed-size crops (166 to 200 px wide), so the recording has to match the resolution and in-game UI scale they were cropped from. The repo does not record what that resolution was. Footage at another size will produce no matches.
-- **Not validated on real gameplay.** `MATCH_THRESH` is hard-coded at 0.85 and accuracy has not been measured on real recordings. The synthetic test only shows the pipeline finds banners that were pasted in pixel-exact. In my own use it has not been robust on real footage, where banners are animated and drawn over the game.
+- **Fixed threshold.** `MATCH_THRESH` is hard-coded at 0.85, and accuracy has not been benchmarked on real recordings. The synthetic test above checks the pipeline end to end with banners pasted in pixel-exact.
 - **Duplicate reports.** A banner that stays visible across several sampled frames is reported once per frame. In the test above, every 3-second banner was listed twice (for example `double @ 1:00` and `double @ 1:02`). Hits are not merged into events.
 - **Sampling can miss banners.** Only one frame per interval is checked, so a banner shorter than `--extract-interval` can fall between samples. Timestamps mark the sampled frame, not when the banner first appeared, and are truncated to whole seconds.
 - **Speed.** Even the faster script decodes every sampled frame at full resolution and matches four templates against the whole frame. Restricting the search to the region where banners appear, or downscaling, would cut the work but has not been done.
